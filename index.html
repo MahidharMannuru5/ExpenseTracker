@@ -1,1 +1,261 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💸 Expense Tracker Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .glass {
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    .gradient {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex flex-col items-center">
+  <!-- Header -->
+  <header class="gradient text-white w-full py-4 shadow-lg">
+    <h1 class="text-3xl font-bold text-center tracking-wide">💸 Expense Tracker</h1>
+  </header>
+
+  <main class="w-full max-w-4xl mt-8 p-6 bg-white rounded-2xl shadow-xl glass">
+    <!-- AUTH SECTION -->
+    <div id="authSection" class="space-y-4 text-center">
+      <h2 class="text-2xl font-semibold text-gray-700">Welcome Back 👋</h2>
+      <input id="email" type="email" placeholder="Email" class="border p-3 w-full rounded-lg" />
+      <input id="password" type="password" placeholder="Password" class="border p-3 w-full rounded-lg" />
+      <div class="flex gap-2">
+        <button id="loginBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded w-1/2 transition">Login</button>
+        <button id="signupBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded w-1/2 transition">Sign Up</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="hidden space-y-8">
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-semibold text-gray-800">Dashboard</h2>
+        <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg">Logout</button>
+      </div>
+
+      <!-- BUDGET SETUP -->
+      <section class="bg-gray-50 border rounded-lg p-4 shadow-sm">
+        <h3 class="text-lg font-semibold mb-3 text-indigo-600">Set Budget 🎯</h3>
+        <div class="flex flex-wrap gap-2">
+          <input id="startDate" type="date" class="border p-2 rounded w-full sm:w-1/3" />
+          <input id="endDate" type="date" class="border p-2 rounded w-full sm:w-1/3" />
+          <input id="budgetAmount" type="number" placeholder="Budget ₹" class="border p-2 rounded w-full sm:w-1/3" />
+          <button id="setBudgetBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded w-full sm:w-auto">Set</button>
+        </div>
+        <div id="budgetInfo" class="mt-3 text-gray-700 text-center"></div>
+      </section>
+
+      <!-- ADD EXPENSE -->
+      <section class="bg-gray-50 border rounded-lg p-4 shadow-sm">
+        <h3 class="text-lg font-semibold mb-3 text-purple-600">Add Expense ➕</h3>
+        <div class="flex flex-wrap gap-2">
+          <input id="expenseDate" type="date" class="border p-2 rounded w-full sm:w-1/4" />
+          <input id="category" type="text" placeholder="Category" class="border p-2 rounded w-full sm:w-1/4" />
+          <input id="item" type="text" placeholder="Item" class="border p-2 rounded w-full sm:w-1/4" />
+          <input id="amount" type="number" placeholder="Amount ₹" class="border p-2 rounded w-full sm:w-1/4" />
+          <button id="addExpenseBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full sm:w-auto">Add</button>
+        </div>
+      </section>
+
+      <!-- FILTER -->
+      <section class="bg-gray-50 border rounded-lg p-4 shadow-sm">
+        <h3 class="text-lg font-semibold mb-3 text-blue-600">Filter by Date 📅</h3>
+        <div class="flex flex-wrap gap-2">
+          <input id="filterStart" type="date" class="border p-2 rounded w-full sm:w-1/3" />
+          <input id="filterEnd" type="date" class="border p-2 rounded w-full sm:w-1/3" />
+          <button id="filterBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded w-full sm:w-auto">Apply</button>
+        </div>
+      </section>
+
+      <!-- SUMMARY -->
+      <div id="summary" class="text-lg font-semibold text-center text-gray-800"></div>
+
+      <!-- CHART -->
+      <div class="p-4 bg-gray-50 border rounded-lg shadow-sm">
+        <h3 class="text-lg font-semibold text-indigo-600 mb-2">Category Breakdown 📊</h3>
+        <canvas id="chartCanvas" height="100"></canvas>
+      </div>
+
+      <!-- EXPENSES TABLE -->
+      <section class="overflow-x-auto bg-gray-50 border rounded-lg shadow-sm p-4">
+        <h3 class="text-lg font-semibold text-gray-700 mb-3">Expenses List 💰</h3>
+        <table class="min-w-full text-sm border">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="px-4 py-2 border">Date</th>
+              <th class="px-4 py-2 border">Category</th>
+              <th class="px-4 py-2 border">Item</th>
+              <th class="px-4 py-2 border">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="expenseTable"></tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://whmgcmtpvdecrjvfzauu.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndobWdjbXRwdmRlY3JqdmZ6YXV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzOTU2ODAsImV4cCI6MjA3Nzk3MTY4MH0.oX6rFgA6yOnF0PHYA5w05gYtfvGWXkN7lwFS4Zedvho";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const authSection = document.getElementById('authSection');
+    const dashboard = document.getElementById('dashboard');
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('expenseDate').value = today;
+
+    let currentUser = null;
+    let currentBudget = null;
+    let chartInstance = null;
+
+    // --- AUTH ---
+    async function checkSession() {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        currentUser = data.user;
+        authSection.classList.add('hidden');
+        dashboard.classList.remove('hidden');
+        loadBudget();
+        loadExpenses(today, today);
+      }
+    }
+    checkSession();
+
+    document.getElementById('signupBtn').onclick = async () => {
+      const emailVal = document.getElementById('email').value;
+      const passwordVal = document.getElementById('password').value;
+      const { error } = await supabase.auth.signUp({ email: emailVal, password: passwordVal });
+      if (error) alert(error.message);
+      else alert('Signup successful! Check your email to verify.');
+    };
+
+    document.getElementById('loginBtn').onclick = async () => {
+      const emailVal = document.getElementById('email').value;
+      const passwordVal = document.getElementById('password').value;
+      const { data, error } = await supabase.auth.signInWithPassword({ email: emailVal, password: passwordVal });
+      if (error) return alert(error.message);
+      currentUser = data.user;
+      authSection.classList.add('hidden');
+      dashboard.classList.remove('hidden');
+      loadBudget();
+      loadExpenses(today, today);
+    };
+
+    document.getElementById('logoutBtn').onclick = async () => {
+      await supabase.auth.signOut();
+      location.reload();
+    };
+
+    // --- BUDGET ---
+    document.getElementById('setBudgetBtn').onclick = async () => {
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+      const amount = parseFloat(document.getElementById('budgetAmount').value);
+      if (!start || !end || !amount) return alert('Please fill all fields');
+      await supabase.from('budgets').insert({
+        user_id: currentUser.id,
+        start_date: start,
+        end_date: end,
+        total_budget: amount
+      });
+      loadBudget();
+    };
+
+    async function loadBudget() {
+      const { data } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      currentBudget = data?.[0];
+      document.getElementById('budgetInfo').innerText =
+        currentBudget
+          ? `Budget ₹${currentBudget.total_budget} (${currentBudget.start_date} → ${currentBudget.end_date})`
+          : "No budget set yet.";
+    }
+
+    // --- ADD EXPENSE ---
+    document.getElementById('addExpenseBtn').onclick = async () => {
+      const date = document.getElementById('expenseDate').value;
+      const cat = document.getElementById('category').value;
+      const itemVal = document.getElementById('item').value;
+      const amt = parseFloat(document.getElementById('amount').value);
+      if (!date || !cat || !amt) return alert('Fill all fields');
+      await supabase.from('expenses').insert({
+        user_id: currentUser.id, date, category: cat, item: itemVal, amount: amt
+      });
+      ['category', 'item', 'amount'].forEach(id => document.getElementById(id).value = '');
+      loadExpenses(today, today);
+    };
+
+    // --- FILTER ---
+    document.getElementById('filterBtn').onclick = () => {
+      const start = document.getElementById('filterStart').value || today;
+      const end = document.getElementById('filterEnd').value || today;
+      loadExpenses(start, end);
+    };
+
+    // --- LOAD EXPENSES ---
+    async function loadExpenses(start, end) {
+      const { data } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .gte('date', start)
+        .lte('date', end)
+        .order('date', { ascending: false });
+
+      const tbody = document.getElementById('expenseTable');
+      tbody.innerHTML = '';
+      let total = 0;
+      const categoryTotals = {};
+
+      data.forEach(e => {
+        total += Number(e.amount);
+        categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class='border px-4 py-2'>${e.date}</td>
+                        <td class='border px-4 py-2'>${e.category}</td>
+                        <td class='border px-4 py-2'>${e.item || '-'}</td>
+                        <td class='border px-4 py-2'>₹${e.amount}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      const budgetAmt = currentBudget ? currentBudget.total_budget : 0;
+      const remaining = budgetAmt - total;
+      document.getElementById('summary').innerText =
+        `💰 Spent ₹${total} | 🏦 Remaining ₹${remaining} | 🎯 Budget ₹${budgetAmt}`;
+
+      updateChart(categoryTotals);
+    }
+
+    function updateChart(data) {
+      const ctx = document.getElementById('chartCanvas');
+      const labels = Object.keys(data);
+      const values = Object.values(data);
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Spending', data: values, backgroundColor: '#6366f1' }]
+        },
+        options: { plugins: { legend: { display: false } }, responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+    }
+  </script>
+</body>
+</html>
