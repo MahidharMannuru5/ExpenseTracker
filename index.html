@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💸 Expense Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .gradient { background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+    .modal { position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:50; }
+    .toast { position:fixed;top:1rem;right:1rem;padding:0.75rem 1rem;border-radius:0.5rem;color:#fff;z-index:100;animation:fadein .3s; }
+    @keyframes fadein { from{opacity:0;transform:translateY(-10px);} to{opacity:1;transform:translateY(0);} }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+  <header class="gradient text-white py-4 shadow-lg text-center">
+    <h1 class="text-3xl font-bold">💸 Expense Tracker</h1>
+  </header>
+
+  <!-- AUTH -->
+  <main id="authSection" class="p-6 max-w-md mx-auto mt-8 space-y-3 bg-white shadow-lg rounded-xl">
+    <h2 class="text-2xl font-semibold text-gray-700 text-center">Welcome 👋</h2>
+    <input id="email" type="email" placeholder="Email" class="border p-3 w-full rounded-lg" />
+    <input id="password" type="password" placeholder="Password" class="border p-3 w-full rounded-lg" />
+    <div class="flex gap-2">
+      <button id="loginBtn" class="bg-indigo-600 text-white w-1/2 py-2 rounded">Login</button>
+      <button id="signupBtn" class="bg-purple-600 text-white w-1/2 py-2 rounded">Sign Up</button>
+    </div>
+  </main>
+
+  <!-- DASHBOARD -->
+  <main id="dashboard" class="hidden flex-1 flex flex-col items-center p-4">
+    <div class="w-full max-w-4xl bg-white shadow-xl rounded-2xl p-6">
+      <!-- Top bar -->
+      <div class="flex flex-wrap justify-between gap-3 mb-4">
+        <h2 class="text-2xl font-semibold">Dashboard</h2>
+        <div class="flex flex-wrap gap-2">
+          <button id="addTopBtn" class="bg-green-600 text-white px-2 py-1 sm:px-3 sm:py-2 text-sm rounded">➕ Add</button>
+          <button id="shareBtn" class="bg-yellow-500 text-white px-2 py-1 sm:px-3 sm:py-2 text-sm rounded">Share</button>
+          <button id="editBudgetBtn" class="bg-indigo-500 text-white px-2 py-1 sm:px-3 sm:py-2 text-sm rounded">Edit Budget</button>
+          <button id="logoutBtn" class="bg-red-500 text-white px-2 py-1 sm:px-3 sm:py-2 text-sm rounded">Logout</button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-sm font-medium">Viewing:</span>
+        <select id="viewSelector" class="border rounded px-2 py-1 text-sm"></select>
+      </div>
+
+      <div id="summary" class="mx-auto mb-5 text-center">
+        <div class="inline-block bg-gray-100 border rounded-xl px-4 py-2 text-gray-800 font-semibold text-base">
+          Loading summary...
+        </div>
+      </div>
+
+      <div class="flex justify-center items-center gap-3 mb-4">
+        <button id="prevDay" class="px-3 py-1 bg-gray-300 rounded">◀</button>
+        <input type="date" id="viewDate" class="border p-2 rounded" />
+        <button id="nextDay" class="px-3 py-1 bg-gray-300 rounded">▶</button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full border text-sm">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="border px-3 py-2">Date</th>
+              <th class="border px-3 py-2">Category</th>
+              <th class="border px-3 py-2">Item</th>
+              <th class="border px-3 py-2">Amount</th>
+              <th class="border px-3 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody id="expenseTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- EXPENSE MODAL -->
+  <div id="expenseModal" class="modal hidden">
+    <div class="bg-white p-6 rounded-xl w-96 shadow-xl">
+      <h2 class="text-xl font-semibold mb-3">Add Expense</h2>
+      <input id="expenseDate" type="date" class="border p-2 rounded w-full mb-2" />
+      <input id="category" type="text" placeholder="Category" class="border p-2 rounded w-full mb-2" />
+      <input id="item" type="text" placeholder="Item" class="border p-2 rounded w-full mb-2" />
+      <input id="amount" type="number" placeholder="Amount ₹" class="border p-2 rounded w-full mb-4" />
+      <div class="flex justify-end gap-2">
+        <button onclick="toggleModal('expenseModal',false)" class="bg-gray-300 px-3 py-1 rounded">Cancel</button>
+        <button id="addExpenseBtn" class="bg-green-600 text-white px-3 py-1 rounded">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUDGET MODAL -->
+  <div id="budgetModal" class="modal hidden">
+    <div class="bg-white p-6 rounded-xl w-96 shadow-xl">
+      <h2 class="text-xl font-semibold mb-3">Edit Budget</h2>
+      <input id="startDate" type="date" class="border p-2 rounded w-full mb-2" />
+      <input id="endDate" type="date" class="border p-2 rounded w-full mb-2" />
+      <input id="budgetAmount" type="number" placeholder="Budget ₹" class="border p-2 rounded w-full mb-4" />
+      <div class="flex justify-end gap-2">
+        <button onclick="toggleModal('budgetModal',false)" class="bg-gray-300 px-3 py-1 rounded">Cancel</button>
+        <button id="setBudgetBtn" class="bg-indigo-600 text-white px-3 py-1 rounded">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHARE MODAL -->
+  <div id="shareModal" class="modal hidden">
+    <div class="bg-white p-6 rounded-xl w-96 shadow-xl">
+      <h2 class="text-xl font-semibold mb-3">Share Expenses</h2>
+      <input id="shareEmail" type="email" placeholder="Friend's Email" class="border p-2 rounded w-full mb-4" />
+      <div class="flex justify-end gap-2">
+        <button onclick="toggleModal('shareModal',false)" class="bg-gray-300 px-3 py-1 rounded">Cancel</button>
+        <button id="shareSaveBtn" class="bg-yellow-500 text-white px-3 py-1 rounded">Share</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="hidden toast"></div>
+
+  <script>
+    const SUPABASE_URL="https://whmgcmtpvdecrjvfzauu.supabase.co";
+    const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndobWdjbXRwdmRlY3JqdmZ6YXV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzOTU2ODAsImV4cCI6MjA3Nzk3MTY4MH0.oX6rFgA6yOnF0PHYA5w05gYtfvGWXkN7lwFS4Zedvho";
+    const supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+    let currentUser=null,viewingUserId=null,viewDate=new Date(),budgets=[];
+
+    const fmt=(d)=>d.toISOString().split("T")[0];
+    const showToast=(m,t="info")=>{const x=document.getElementById("toast");x.textContent=m;x.classList.remove("hidden");x.style.background=t==="error"?"#ef4444":t==="success"?"#10b981":"#374151";setTimeout(()=>x.classList.add("hidden"),2500);}
+    const toggleModal=(id,b)=>document.getElementById(id).classList.toggle("hidden",!b);
+    const getActiveBudget=(date)=>budgets.find(b=>date>=b.start_date&&date<=b.end_date);
+
+    async function boot(){
+      const {data}=await supabase.auth.getSession();
+      if(data?.session?.user){
+        currentUser=data.session.user;viewingUserId=currentUser.id;
+        authSection.classList.add("hidden");dashboard.classList.remove("hidden");
+        viewDate.value=fmt(viewDate);expenseDate.value=fmt(viewDate);
+        await loadShared();await loadBudgets();await render();
+      }
+    }boot();
+
+    loginBtn.onclick=async()=>{const{data,error}=await supabase.auth.signInWithPassword({email:email.value,password:password.value});if(error)return showToast(error.message,"error");currentUser=data.user;viewingUserId=currentUser.id;authSection.classList.add("hidden");dashboard.classList.remove("hidden");viewDate.value=fmt(viewDate);expenseDate.value=fmt(viewDate);await loadShared();await loadBudgets();await render();}
+    signupBtn.onclick=async()=>{const{error}=await supabase.auth.signUp({email:email.value,password:password.value});if(error)return showToast(error.message,"error");showToast("Signup successful! Verify email","success");}
+    logoutBtn.onclick=async()=>{await supabase.auth.signOut();location.reload();}
+
+    async function loadShared(){
+      const sel=document.getElementById("viewSelector");sel.innerHTML="";
+      const mine=document.createElement("option");mine.value=currentUser.id;mine.textContent="My Expenses";sel.appendChild(mine);
+      const {data}=await supabase.from("shared_expenses").select("owner_id,viewer_id").eq("viewer_id",currentUser.id);
+      if(data?.length){[...new Set(data.map(d=>d.owner_id))].forEach((id,i)=>{const o=document.createElement("option");o.value=id;o.textContent=`Shared ${i+1}`;sel.appendChild(o);});}
+      sel.value=viewingUserId;sel.onchange=async()=>{viewingUserId=sel.value;await loadBudgets();await render();}
+    }
+
+    async function loadBudgets(){
+      const{data,error}=await supabase.from("budgets").select("*").eq("user_id",viewingUserId);
+      if(error)return showToast(error.message,"error");budgets=data||[];
+    }
+
+    async function render(){
+      const dateStr=fmt(viewDate);
+      const {data:expenses}=await supabase.from("expenses").select("*").eq("user_id",viewingUserId).order("date",{ascending:true});
+      const tbody=document.getElementById("expenseTable");tbody.innerHTML="";
+      const active=getActiveBudget(dateStr);let spent=0;
+      if(expenses){expenses.forEach(e=>{if(active&&e.date>=active.start_date&&e.date<=dateStr)spent+=e.amount;
+        if(e.date===dateStr){const tr=document.createElement("tr");tr.innerHTML=`<td class='border px-3 py-1'>${e.date}</td><td class='border px-3 py-1'>${e.category}</td><td class='border px-3 py-1'>${e.item}</td><td class='border px-3 py-1'>₹${e.amount}</td><td class='border px-3 py-1 text-center'>${(viewingUserId===currentUser.id)?`<button onclick="delExp('${e.id}')" class='bg-red-500 text-white px-2 rounded text-xs'>🗑️</button>`:"-"}</td>`;tbody.appendChild(tr);}});}
+      const sum=document.getElementById("summary");
+      if(active){sum.innerHTML=`<div class='inline-block bg-gray-100 border rounded-xl px-4 py-2 text-gray-800 font-semibold text-base'>Spent ₹${spent} | Remaining ₹${active.total_budget-spent} | Budget ₹${active.total_budget}</div>`;}
+      else sum.innerHTML=`<div class='inline-block bg-gray-100 border rounded-xl px-4 py-2 text-gray-800 font-semibold'>No Active Budget</div>`;
+    }
+
+    addTopBtn.onclick=()=>toggleModal("expenseModal",true);
+    addExpenseBtn.onclick=async()=>{const d=expenseDate.value,c=category.value,i=item.value,a=parseFloat(amount.value);if(!d||!c||!i||!a)return showToast("Fill all fields","error");const{error}=await supabase.from("expenses").insert([{user_id:currentUser.id,date:d,category:c,item:i,amount:a}]);if(error)return showToast(error.message,"error");showToast("Expense added!","success");toggleModal("expenseModal",false);await render();}
+
+    editBudgetBtn.onclick=()=>{const b=getActiveBudget(fmt(viewDate));if(b){startDate.value=b.start_date;endDate.value=b.end_date;budgetAmount.value=b.total_budget;}else{startDate.value=endDate.value=fmt(viewDate);budgetAmount.value="";}toggleModal("budgetModal",true);}
+    setBudgetBtn.onclick=async()=>{const s=startDate.value,e=endDate.value,a=parseFloat(budgetAmount.value);if(!s||!e||!a)return showToast("Fill all fields","error");const exist=getActiveBudget(fmt(viewDate));if(exist){await supabase.from("budgets").update({start_date:s,end_date:e,total_budget:a}).eq("id",exist.id);}else{await supabase.from("budgets").insert([{user_id:currentUser.id,start_date:s,end_date:e,total_budget:a}]);}showToast("Budget saved!","success");toggleModal("budgetModal",false);await loadBudgets();await render();}
+
+    async function delExp(id){await supabase.from("expenses").delete().eq("id",id);showToast("Deleted","success");await render();}
+
+    shareBtn.onclick=()=>toggleModal("shareModal",true);
+    shareSaveBtn.onclick=async()=>{const mail=shareEmail.value;if(!mail)return showToast("Enter email","error");
+      const{data:user,error}=await supabase.from("profiles").select("id").eq("email",mail).single();
+      if(error||!user)return showToast("User not found or not signed up yet","error");
+      await supabase.from("shared_expenses").insert([{owner_id:currentUser.id,viewer_id:user.id,can_view:true}]);
+      showToast("Shared!","success");toggleModal("shareModal",false);
+    }
+
+    prevDay.onclick=()=>{viewDate.setDate(viewDate.getDate()-1);viewDate.value=fmt(viewDate);render();}
+    nextDay.onclick=()=>{viewDate.setDate(viewDate.getDate()+1);viewDate.value=fmt(viewDate);render();}
+    viewDate.onchange=()=>{viewDate=new Date(viewDate.value);render();}
+  </script>
+</body>
+</html>
